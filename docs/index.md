@@ -1,4 +1,4 @@
-# Typhoon <img align="right" src="https://storage.googleapis.com/dghubble/spin.png">
+# Typhoon <img align="right" src="https://storage.googleapis.com/poseidon/typhoon-logo.png">
 
 Typhoon is a minimal and free Kubernetes distribution.
 
@@ -9,33 +9,39 @@ Typhoon is a minimal and free Kubernetes distribution.
 
 Typhoon distributes upstream Kubernetes, architectural conventions, and cluster addons, much like a GNU/Linux distribution provides the Linux kernel and userspace components.
 
-## Features
+## Features <a href="https://www.cncf.io/certification/software-conformance/"><img align="right" src="https://storage.googleapis.com/poseidon/certified-kubernetes.png"></a>
 
-* Kubernetes v1.7.5 (upstream, via [kubernetes-incubator/bootkube](https://github.com/kubernetes-incubator/bootkube))
-* Single or multi-master, workloads isolated on workers, [Calico](https://www.projectcalico.org/) or [flannel](https://github.com/coreos/flannel) networking
+* Kubernetes v1.13.2 (upstream, via [kubernetes-incubator/bootkube](https://github.com/kubernetes-incubator/bootkube))
+* Single or multi-master, [Calico](https://www.projectcalico.org/) or [flannel](https://github.com/coreos/flannel) networking
 * On-cluster etcd with TLS, [RBAC](https://kubernetes.io/docs/admin/authorization/rbac/)-enabled, [network policy](https://kubernetes.io/docs/concepts/services-networking/network-policies/)
-* Ready for Ingress, Dashboards, Metrics and other optional [addons](addons/overview.md)
-* Provided via Terraform Modules
+* Advanced features like [worker pools](https://typhoon.psdn.io/advanced/worker-pools/), [preemptible](https://typhoon.psdn.io/cl/google-cloud/#preemption) workers, and [snippets](https://typhoon.psdn.io/advanced/customization/#container-linux) customization
+* Ready for Ingress, Prometheus, Grafana, CSI, or other [addons](https://typhoon.psdn.io/addons/overview/)
 
 ## Modules
 
-Typhoon provides a Terraform Module for each supported operating system and platform.
+Typhoon provides a Terraform Module for each supported operating system and platform. Container Linux is a mature and reliable choice. Also, Kinvolk's Flatcar Linux fork is selectable on AWS and bare-metal.
 
 | Platform      | Operating System | Terraform Module | Status |
 |---------------|------------------|------------------|--------|
-| AWS           | Container Linux  | [aws/container-linux/kubernetes](aws.md) | alpha |
-| Bare-Metal    | Container Linux  | [bare-metal/container-linux/kubernetes](bare-metal.md) | production |
-| Digital Ocean | Container Linux  | [digital-ocean/container-linux/kubernetes](digital-ocean.md) | beta |
-| Google Cloud  | Container Linux  | [google-cloud/container-linux/kubernetes](google-cloud.md) | production |
+| AWS           | Container Linux  | [aws/container-linux/kubernetes](aws/container-linux/kubernetes) | stable |
+| Azure         | Container Linux  | [azure/container-linux/kubernetes](cl/azure.md) | alpha |
+| Bare-Metal    | Container Linux  | [bare-metal/container-linux/kubernetes](bare-metal/container-linux/kubernetes) | stable |
+| Digital Ocean | Container Linux  | [digital-ocean/container-linux/kubernetes](digital-ocean/container-linux/kubernetes) | beta |
+| Google Cloud  | Container Linux  | [google-cloud/container-linux/kubernetes](google-cloud/container-linux/kubernetes) | stable |
 
-## Usage
+Fedora Atomic support is alpha and will evolve as Fedora Atomic is replaced by Fedora CoreOS.
 
-* [Concepts](concepts.md)
-* Tutorials
-    * [AWS](aws.md)
-    * [Bare-Metal](bare-metal.md)
-    * [Digital Ocean](digital-ocean.md)
-    * [Google-Cloud](google-cloud.md)
+| Platform      | Operating System | Terraform Module | Status |
+|---------------|------------------|------------------|--------|
+| AWS           | Fedora Atomic    | [aws/fedora-atomic/kubernetes](aws/fedora-atomic/kubernetes) | alpha |
+| Bare-Metal    | Fedora Atomic    | [bare-metal/fedora-atomic/kubernetes](bare-metal/fedora-atomic/kubernetes) | alpha |
+| Digital Ocean | Fedora Atomic    | [digital-ocean/fedora-atomic/kubernetes](digital-ocean/fedora-atomic/kubernetes) | alpha |
+| Google Cloud  | Fedora Atomic    | [google-cloud/fedora-atomic/kubernetes](google-cloud/fedora-atomic/kubernetes) | alpha |
+
+## Documentation
+
+* Architecture [concepts](architecture/concepts.md) and [operating-systems](architecture/operating-systems.md)
+* Tutorials for [AWS](cl/aws.md), [Azure](cl/azure.md), [Bare-Metal](cl/bare-metal.md), [Digital Ocean](cl/digital-ocean.md), and [Google-Cloud](cl/google-cloud.md)
 
 ## Example
 
@@ -43,43 +49,50 @@ Define a Kubernetes cluster by using the Terraform module for your chosen platfo
 
 ```tf
 module "google-cloud-yavin" {
-  source = "git::https://github.com/poseidon/typhoon//google-cloud/container-linux/kubernetes"
+  source = "git::https://github.com/poseidon/typhoon//google-cloud/container-linux/kubernetes?ref=v1.13.2"
+  
+  providers = {
+    google   = "google.default"
+    local    = "local.default"
+    null     = "null.default"
+    template = "template.default"
+    tls      = "tls.default"
+  }
 
   # Google Cloud
-  zone          = "us-central1-c"
+  cluster_name  = "yavin"
+  region        = "us-central1"
   dns_zone      = "example.com"
   dns_zone_name = "example-zone"
-  os_image      = "coreos-stable-1465-6-0-v20170817"
 
-  cluster_name       = "yavin"
-  controller_count   = 1
-  worker_count       = 2
+  # configuration
   ssh_authorized_key = "ssh-rsa AAAAB3Nz..."
-
-  # output assets dir
-  asset_dir = "/home/user/.secrets/clusters/yavin"
+  asset_dir          = "/home/user/.secrets/clusters/yavin"
+  
+  # optional
+  worker_count = 2
 }
 ```
 
-Fetch modules, plan the changes to be made, and apply the changes.
+Initialize modules, plan the changes to be made, and apply the changes.
 
 ```sh
-$ terraform get --update
+$ terraform init
 $ terraform plan
 Plan: 64 to add, 0 to change, 0 to destroy.
 $ terraform apply
 Apply complete! Resources: 64 added, 0 changed, 0 destroyed.
 ```
 
-In 5-10 minutes (varies by platform), the cluster will be ready. This Google Cloud example creates a `yavin.example.com` DNS record to resolve to a network load balancer across controller nodes.
+In 4-8 minutes (varies by platform), the cluster will be ready. This Google Cloud example creates a `yavin.example.com` DNS record to resolve to a network load balancer across controller nodes.
 
 ```
-$ KUBECONFIG=/home/user/.secrets/clusters/yavin/auth/kubeconfig
+$ export KUBECONFIG=/home/user/.secrets/clusters/yavin/auth/kubeconfig
 $ kubectl get nodes
-NAME                                          STATUS   AGE    VERSION
-yavin-controller-1682.c.example-com.internal  Ready    6m     v1.7.5+coreos.0
-yavin-worker-jrbf.c.example-com.internal      Ready    5m     v1.7.5+coreos.0
-yavin-worker-mzdm.c.example-com.internal      Ready    5m     v1.7.5+coreos.0
+NAME                                       ROLES              STATUS  AGE  VERSION
+yavin-controller-0.c.example-com.internal  controller,master  Ready   6m   v1.13.2
+yavin-worker-jrbf.c.example-com.internal   node               Ready   5m   v1.13.2
+yavin-worker-mzdm.c.example-com.internal   node               Ready   5m   v1.13.2
 ```
 
 List the pods.
@@ -87,29 +100,32 @@ List the pods.
 ```
 $ kubectl get pods --all-namespaces
 NAMESPACE     NAME                                      READY  STATUS    RESTARTS  AGE
-kube-system   etcd-operator-3329263108-f443m            1/1    Running   1         6m
+kube-system   calico-node-1cs8z                         2/2    Running   0         6m
+kube-system   calico-node-d1l5b                         2/2    Running   0         6m
+kube-system   calico-node-sp9ps                         2/2    Running   0         6m
+kube-system   coredns-1187388186-dkh3o                  1/1    Running   0         6m
+kube-system   coredns-1187388186-zj5dl                  1/1    Running   0         6m
 kube-system   kube-apiserver-zppls                      1/1    Running   0         6m
 kube-system   kube-controller-manager-3271970485-gh9kt  1/1    Running   0         6m
 kube-system   kube-controller-manager-3271970485-h90v8  1/1    Running   1         6m
-kube-system   kube-dns-1187388186-zj5dl                 3/3    Running   0         6m
-kube-system   kube-etcd-0000                            1/1    Running   0         5m
-kube-system   kube-etcd-network-checkpointer-crznb      1/1    Running   0         6m
-kube-system   kube-flannel-1cs8z                        2/2    Running   0         6m
-kube-system   kube-flannel-d1l5b                        2/2    Running   0         6m
-kube-system   kube-flannel-sp9ps                        2/2    Running   0         6m
 kube-system   kube-proxy-117v6                          1/1    Running   0         6m
 kube-system   kube-proxy-9886n                          1/1    Running   0         6m
 kube-system   kube-proxy-njn47                          1/1    Running   0         6m
 kube-system   kube-scheduler-3895335239-5x87r           1/1    Running   0         6m
 kube-system   kube-scheduler-3895335239-bzrrt           1/1    Running   1         6m
 kube-system   pod-checkpointer-l6lrt                    1/1    Running   0         6m
+kube-system   pod-checkpointer-l6lrt-controller-0       1/1    Running   0         6m
 ```
 
-## Background
+## Help
+
+Ask questions on the IRC #typhoon channel on [freenode.net](http://freenode.net/).
+
+## Motivation
 
 Typhoon powers the author's cloud and colocation clusters. The project has evolved through operational experience and Kubernetes changes. Typhoon is shared under a free license to allow others to use the work freely and contribute to its upkeep.
 
-Typhoon addresses real world needs, which you may share. It is honest about limitations or areas that aren't mature yet. It avoids buzzword bingo and hype. It does not aim to be the one-solution-fits-all distro. An ecosystem of free (or enterprise) Kubernetes distros is healthy.
+Typhoon addresses real world needs, which you may share. It is honest about limitations or areas that aren't mature yet. It avoids buzzword bingo and hype. It does not aim to be the one-solution-fits-all distro. An ecosystem of Kubernetes distributions is healthy.
 
 ## Social Contract
 
@@ -117,4 +133,7 @@ Typhoon is not a product, trial, or free-tier. It is not run by a company, does 
 
 Typhoon clusters will contain only [free](https://www.debian.org/intro/free) components. Cluster components will not collect data on users without their permission.
 
-*Disclosure: The author works for CoreOS and previously wrote Matchbox and original Tectonic for bare-metal and AWS. This project is not associated with CoreOS.*
+## Donations
+
+Typhoon does not accept money donations. Instead, we encourage you to donate to one of [these organizations](https://github.com/poseidon/typhoon/wiki/Donations) to show your appreciation.
+
